@@ -1,0 +1,217 @@
+/* 蒙层 —— 用最高 z-index 保证盖住页面所有元素 */
+#__web_ocr_overlay__ {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483646;
+  cursor: crosshair;
+  background: rgba(0, 0, 0, 0.25);
+  user-select: none;
+}
+
+/* 框选矩形 */
+#__web_ocr_rect__ {
+  position: fixed;
+  z-index: 2147483647;
+  border: 2px solid #3b82f6;
+  background: rgba(59, 130, 246, 0.12);
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+}
+
+/* 顶部提示条 */
+#__web_ocr_hint__ {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2147483647;
+  padding: 8px 16px;
+  background: rgba(17, 24, 39, 0.9);
+  color: #fff;
+  font-size: 13px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  border-radius: 6px;
+  pointer-events: none;
+}
+
+/* 底部 toast */
+#__web_ocr_toast__ {
+  position: fixed;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2147483647;
+  padding: 10px 18px;
+  background: rgba(17, 24, 39, 0.92);
+  color: #fff;
+  font-size: 13px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  transition: opacity 0.3s;
+}
+
+#__web_ocr_toast__ .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22c55e;
+}
+
+#__web_ocr_toast__.error .dot { background: #ef4444; }
+#__web_ocr_toast__.loading .dot {
+  background: #f59e0b;
+  animation: __web_ocr_pulse__ 1s infinite;
+}
+
+@keyframes __web_ocr_pulse__ {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* 预览/编辑浮层（默认识别完就弹） */
+#__web_ocr_preview__ {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2147483647;
+  width: min(620px, 92vw);
+  max-height: 78vh;
+  background: #fff;
+  color: #111827;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+#__web_ocr_preview__ .header {
+  padding: 12px 16px;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #fff;
+}
+
+#__web_ocr_preview__ .header .close {
+  border: none;
+  background: transparent;
+  font-size: 16px;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 0 6px;
+  line-height: 1;
+}
+
+#__web_ocr_preview__ .header .close:hover { color: #111827; }
+
+/* 工具栏 */
+#__web_ocr_preview__ .toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: #f3f4f6;
+  border-bottom: 1px solid #e5e7eb;
+  flex-wrap: wrap;
+}
+
+#__web_ocr_preview__ .toolbar button {
+  padding: 5px 10px;
+  font-size: 12px;
+  border-radius: 5px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #374151;
+  cursor: pointer;
+  font-family: inherit;
+  line-height: 1.4;
+}
+
+#__web_ocr_preview__ .toolbar button:hover {
+  background: #eff6ff;
+  border-color: #3b82f6;
+  color: #1d4ed8;
+}
+
+#__web_ocr_preview__ .toolbar .sep {
+  width: 1px;
+  height: 18px;
+  background: #d1d5db;
+  margin: 0 4px;
+}
+
+#__web_ocr_preview__ .toolbar .counter {
+  margin-left: auto;
+  font-size: 12px;
+  color: #6b7280;
+  font-variant-numeric: tabular-nums;
+  transition: color 0.15s, background 0.15s;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+#__web_ocr_preview__ .toolbar .counter.has-selection {
+  color: #1d4ed8;
+  background: #dbeafe;
+  font-weight: 600;
+}
+
+#__web_ocr_preview__ textarea {
+  flex: 1;
+  padding: 14px 16px;
+  border: none;
+  outline: none;
+  resize: none;
+  font-size: 14px;
+  line-height: 1.7;
+  font-family: inherit;
+  color: #111827;
+  background: #fafafa;
+  min-height: 220px;
+}
+
+#__web_ocr_preview__ .footer {
+  padding: 10px 16px;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  background: #fff;
+}
+
+#__web_ocr_preview__ .footer .hint {
+  margin-right: auto;
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+#__web_ocr_preview__ .footer button {
+  padding: 6px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #374151;
+  font-family: inherit;
+}
+
+#__web_ocr_preview__ .footer button.primary {
+  background: #3b82f6;
+  color: #fff;
+  border-color: #3b82f6;
+}
+
+#__web_ocr_preview__ .footer button.primary:hover { background: #2563eb; border-color: #2563eb; }
+#__web_ocr_preview__ .footer button:not(.primary):hover { background: #f3f4f6; }

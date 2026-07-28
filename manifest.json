@@ -1,0 +1,66 @@
+{
+  "manifest_version": 3,
+  "name": "Web OCR Copy",
+  "version": "0.1.0",
+  "description": "在网页上框选任意区域，本地 OCR 识别后自动复制到剪贴板，无需切换软件。",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "contextMenus",
+    "storage",
+    "clipboardWrite"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "开始 OCR 框选 (⌃+Shift+O)",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "commands": {
+    "start-ocr": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+O",
+        "mac": "MacCtrl+Shift+O"
+      },
+      "description": "开始 OCR 框选"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": [
+        "lib/html2canvas.min.js",
+        "lib/tesseract-shim.js",
+        "lib/tesseract.min.js",
+        "lib/tesseract-restore.js",
+        "content.js"
+      ],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "lib/tesseract.min.js",
+        "lib/worker.min.js",
+        "lib/tesseract-core.wasm.js",
+        "lib/*.traineddata.gz"
+      ],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
