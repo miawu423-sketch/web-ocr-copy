@@ -10,11 +10,14 @@
 
 ## 安装（开发者模式加载）
 
-1. 打开 Chrome/Edge，地址栏输入 `chrome://extensions/`（Edge 是 `edge://extensions/`）
-2. 右上角打开 **开发者模式**
-3. 点击 **加载已解压的扩展程序**
-4. 选择本目录 `web-ocr-copy/`
-5. 图标出现在工具栏后，建议点它右侧的 📌 固定住
+1. **下载并解压 zip**：从工具箱点「⬇ 下载最新版」拿到 `web-ocr-copy-main.zip`，双击解压，会得到一个 `web-ocr-copy-main/` 文件夹
+2. 打开 Chrome/Edge，地址栏输入 `chrome://extensions/`（Edge 是 `edge://extensions/`）
+3. 右上角打开 **开发者模式**
+4. 点击 **加载已解压的扩展程序**
+5. 选择第 1 步解压出来的 `web-ocr-copy-main/` 文件夹（就是包含 `manifest.json` 的那个目录）
+6. 图标出现在工具栏后，建议点它右侧的 📌 固定住
+
+> ⚠️ 常见坑：Chrome 无法直接安装 zip，必须先解压；选择文件夹时要选到"里面能看到 manifest.json"那一层，不要选它的外层父目录。
 
 ## 使用
 
