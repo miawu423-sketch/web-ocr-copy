@@ -382,6 +382,7 @@
       <div class="toolbar">
         <button data-act="trim-spaces" title="选中文本则只处理选区，否则处理全文；删除所有空格（保留换行）">去空格</button>
         <button data-act="trim-newlines" title="选中文本则只处理选区，否则处理全文；把换行合并成一行">去换行</button>
+        <button data-act="trim-blank-lines" title="选中文本则只处理选区，否则处理全文；删除空行（只含空白的行），保留段落换行">去空行</button>
         <button data-act="trim-punct" title="选中文本则只处理选区，否则处理全文；删除中英文标点">去标点</button>
         <button data-act="to-fullwidth" title="选中文本则只处理选区，否则处理全文；把半角标点/空格转为全角（中文标点）">半→全</button>
         <span class="sep"></span>
@@ -494,6 +495,15 @@
       return out;
     };
 
+    // 「去空行」：删除所有只含空白字符（空格/tab/全角空格等）的行，保留有内容的行
+    //             连续多个换行会被折叠成单个换行；开头结尾的空行也一并清掉
+    //             不改动行内容本身（不 trim 行首尾空格，避免破坏刻意的缩进）
+    const removeBlankLines = (s) => {
+      const lines = s.split(/\r?\n/);
+      const kept = lines.filter((l) => l.trim() !== "");
+      return kept.join("\n");
+    };
+
     // 「半→全」：只转换标点符号和空格，保留 ASCII 字母数字不动
     //           针对 ASCII 引号做智能配对：奇数次遇到 " → “，偶数次 → ”；' 同理
     const toFullWidth = (s) => {
@@ -528,6 +538,7 @@
 
     wrap.querySelector('[data-act="trim-spaces"]').onclick = () => applyTransform(removeAllSpaces);
     wrap.querySelector('[data-act="trim-newlines"]').onclick = () => applyTransform(removeAllNewlines);
+    wrap.querySelector('[data-act="trim-blank-lines"]').onclick = () => applyTransform(removeBlankLines);
     wrap.querySelector('[data-act="trim-punct"]').onclick = () => applyTransform(removeAllPunctuation);
     wrap.querySelector('[data-act="to-fullwidth"]').onclick = () => applyTransform(toFullWidth);
 
