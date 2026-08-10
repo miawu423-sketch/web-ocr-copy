@@ -141,14 +141,28 @@
         width: box.w,
         height: box.h,
         useCORS: true,
-        allowTaint: true,
+        allowTaint: false, // 禁止污染，配合 ignoreElements 跳过跨域图片；这样 getImageData 能读像素
         backgroundColor: "#ffffff", // 给一个白底，避免透明像素影响二值化
         scale: Math.max(window.devicePixelRatio || 1, 3), // 提到 3x，中文字更清晰
-        logging: false
+        logging: false,
+        // 跳过 <img>/<video>/<canvas>：这些元素常常是跨域资源，会污染 canvas，
+        // 且 OCR 也不需要识别图片本身的内容，跳掉反而让文字截图更干净。
+        ignoreElements: (el) => {
+          const tag = el.tagName;
+          return tag === "IMG" || tag === "VIDEO" || tag === "CANVAS";
+        }
       });
 
       // 预处理：灰度 + 对比度增强 + 自适应二值化
-      const processed = preprocessForOcr(canvas);
+      // 如果 canvas 因跨域图片被污染（tainted），getImageData 会抛错——
+      // 此时兜底用原始 canvas，识别率略降但不至于整个流程失败。
+      let processed;
+      try {
+        processed = preprocessForOcr(canvas);
+      } catch (e) {
+        console.warn("[web-ocr-copy] 预处理失败（可能是跨域图片污染），使用原始截图", e);
+        processed = canvas;
+      }
 
       updateToast(toast, "识别中…（首次会加载语言包）", "loading");
 
