@@ -166,7 +166,20 @@
 
       updateToast(toast, "识别中…（首次会加载语言包）", "loading");
 
-      const text = await runOcr(processed);
+      // 把 Tesseract 的进度写到 toast，用户能看到到底卡在哪一步
+      const onProgress = (m) => {
+        if (!m || !m.status) return;
+        const pct = m.progress != null ? ` ${Math.round(m.progress * 100)}%` : "";
+        updateToast(toast, `${m.status}${pct}`, "loading");
+      };
+
+      // 给 OCR 加 90 秒超时，防止 worker 死锁时用户以为挂了
+      const text = await Promise.race([
+        runOcr(processed, onProgress),
+        new Promise((_, rej) =>
+          setTimeout(() => rej(new Error("识别超时（90秒），可能是 worker 加载失败，请打开 DevTools Console 查看 [web-ocr-copy] 日志")), 90000)
+        )
+      ]);
       const cleaned = cleanOcrText(text || "");
 
       if (!cleaned) {
@@ -295,6 +308,7 @@
   // 不要用 <script src> 动态注入 —— 那会挂到页面主世界 (main world)，content script 拿不到。
 
   let ocrWorkerPromise = null;
+  let ocrProgressCb = null; // 当前识别周期的进度回调（recognize 内部走 worker 全局 logger）
 
   function getTesseract() {
     // UMD 挂载点在不同浏览器/沙箱下不完全一致，逐个探测更稳。
@@ -333,8 +347,17 @@
         workerPath,
         corePath,
         langPath,
-        cacheMethod: "none",
-        logger: () => {}
+        cacheMethod: "readOnly", // 允许读 IndexedDB 缓存，避免重复加载 19MB 语言包
+        logger: (m) => {
+          // 同时输出到 console 方便排查卡死问题
+          try { console.log("[web-ocr-copy][tesseract]", m); } catch {}
+          if (typeof ocrProgressCb === "function") {
+            try { ocrProgressCb(m); } catch {}
+          }
+        },
+        errorHandler: (err) => {
+          console.error("[web-ocr-copy][tesseract-error]", err);
+        }
       });
 
       // 关键参数优化：
@@ -357,10 +380,15 @@
     return ocrWorkerPromise;
   }
 
-  async function runOcr(canvas) {
-    const worker = await getWorker();
-    const { data } = await worker.recognize(canvas);
-    return data.text;
+  async function runOcr(canvas, onProgress) {
+    ocrProgressCb = onProgress || null;
+    try {
+      const worker = await getWorker();
+      const { data } = await worker.recognize(canvas);
+      return data.text;
+    } finally {
+      ocrProgressCb = null;
+    }
   }
 
   // ================= UI 小组件 =================
