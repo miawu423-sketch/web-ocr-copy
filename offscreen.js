@@ -28,6 +28,11 @@ function getWorker(progressSink) {
       workerPath,
       corePath,
       langPath,
+      // 关键：在 MV3 扩展里必须关掉 blob 包装。
+      // 默认 workerBlobURL=true 会用 new Blob(['importScripts(workerPath)']) 包一层再 new Worker(blobURL)，
+      // 那个 blob worker 在扩展 origin 下 importScripts(chrome-extension://…) 会被当跨源拒掉（NetworkError）。
+      // 关掉后直接 new Worker(workerPath)，chrome-extension:// 同源加载，稳定可用。
+      workerBlobURL: false,
       cacheMethod: "readOnly",
       logger: (m) => {
         log("tesseract", m);
