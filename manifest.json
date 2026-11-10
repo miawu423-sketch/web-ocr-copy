@@ -1,14 +1,15 @@
 {
   "manifest_version": 3,
   "name": "Web OCR Copy",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "在网页上框选任意区域，本地 OCR 识别后自动复制到剪贴板，无需切换软件。",
   "permissions": [
     "activeTab",
     "scripting",
     "contextMenus",
     "storage",
-    "clipboardWrite"
+    "clipboardWrite",
+    "offscreen"
   ],
   "host_permissions": [
     "<all_urls>"
@@ -38,9 +39,6 @@
       "matches": ["<all_urls>"],
       "js": [
         "lib/html2canvas.min.js",
-        "lib/tesseract-shim.js",
-        "lib/tesseract.min.js",
-        "lib/tesseract-restore.js",
         "content.js"
       ],
       "css": ["content.css"],

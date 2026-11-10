@@ -301,91 +301,43 @@
     return canvas;
   }
 
-  // ================= Tesseract 封装 =================
+  // ================= OCR 调用（经 background 转发到 offscreen） =================
   //
-  // 关键点：tesseract.min.js 已通过 manifest.content_scripts 静态注入，
-  // 因此在 content script 的 isolated world 里可以直接拿到 Tesseract（UMD 会同时挂到 self / window / globalThis）。
-  // 不要用 <script src> 动态注入 —— 那会挂到页面主世界 (main world)，content script 拿不到。
+  // 为什么要绕路？
+  //   Tesseract.js 必须创建 Web Worker 才能跑。但 content script 创建 Web Worker
+  //   会继承当前页面的 CSP —— 很多站点（boe.es、银行、政府网站）用严格的
+  //   child-src/worker-src 直接拦住 blob: Worker，于是 createWorker 永远不返回。
+  //
+  //   解法是把 Tesseract 跑在扩展自己的 Offscreen Document 里。那边是扩展 origin，
+  //   不受网页 CSP 影响。content script 只负责截图，把 dataURL 发给 background，
+  //   background 转给 offscreen，offscreen 跑 OCR 后把文本回传。
 
-  let ocrWorkerPromise = null;
-  let ocrProgressCb = null; // 当前识别周期的进度回调（recognize 内部走 worker 全局 logger）
+  let ocrProgressCb = null;
 
-  function getTesseract() {
-    // UMD 挂载点在不同浏览器/沙箱下不完全一致，逐个探测更稳。
-    // 特别是 Chrome content script isolated world：如果 shim 失效、UMD 走了 CommonJS 分支，
-    // Tesseract 会被挂到 module.exports 上而不是全局，这里做兜底探测。
-    const candidates = [
-      typeof Tesseract !== "undefined" ? Tesseract : null,
-      typeof globalThis !== "undefined" ? globalThis.Tesseract : null,
-      typeof self !== "undefined" ? self.Tesseract : null,
-      typeof window !== "undefined" ? window.Tesseract : null,
-      typeof globalThis !== "undefined" && globalThis.module && globalThis.module.exports ? globalThis.module.exports : null,
-      typeof globalThis !== "undefined" ? globalThis.exports : null
-    ];
-    for (const c of candidates) {
-      if (c && typeof c.createWorker === "function") return c;
-      // 有些打包会把库塞到 default 字段
-      if (c && c.default && typeof c.default.createWorker === "function") return c.default;
+  // 监听 background 转发的进度事件
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (msg && msg.type === "ocr-progress" && typeof ocrProgressCb === "function") {
+      try { ocrProgressCb({ status: msg.status, progress: msg.progress }); } catch {}
     }
-    return null;
-  }
-
-  function getWorker() {
-    if (ocrWorkerPromise) return ocrWorkerPromise;
-    ocrWorkerPromise = (async () => {
-      const T = getTesseract();
-      if (!T || typeof T.createWorker !== "function") {
-        throw new Error(
-          "Tesseract 未加载，请重新加载扩展（manifest 已把 tesseract.min.js 加入 content_scripts）"
-        );
-      }
-      const workerPath = chrome.runtime.getURL("lib/worker.min.js");
-      const corePath = chrome.runtime.getURL("lib/tesseract-core.wasm.js");
-      const langPath = chrome.runtime.getURL("lib/");
-
-      const worker = await T.createWorker("chi_sim+eng", 1, {
-        workerPath,
-        corePath,
-        langPath,
-        cacheMethod: "readOnly", // 允许读 IndexedDB 缓存，避免重复加载 19MB 语言包
-        logger: (m) => {
-          // 同时输出到 console 方便排查卡死问题
-          try { console.log("[web-ocr-copy][tesseract]", m); } catch {}
-          if (typeof ocrProgressCb === "function") {
-            try { ocrProgressCb(m); } catch {}
-          }
-        },
-        errorHandler: (err) => {
-          console.error("[web-ocr-copy][tesseract-error]", err);
-        }
-      });
-
-      // 关键参数优化：
-      // - PSM 6：把整块图当作一个统一的文本段落（比默认的 auto 3 更准，尤其是短段落）
-      // - preserve_interword_spaces：保留词间空格（中英混排时对英文单词分隔有用）
-      // - user_defined_dpi=300：告诉引擎图像是高 DPI 的（我们截图 scale=3 相当于 3x 96 ≈ 288，取整 300）
-      // - 关掉 Tesseract 对每个字符做单独识别的双 pass，改用单 pass（中文更快更稳）
-      await worker.setParameters({
-        tessedit_pageseg_mode: "6",
-        preserve_interword_spaces: "1",
-        user_defined_dpi: "300"
-      });
-
-      return worker;
-    })().catch((err) => {
-      // 一次失败后允许下次重试
-      ocrWorkerPromise = null;
-      throw err;
-    });
-    return ocrWorkerPromise;
-  }
+  });
 
   async function runOcr(canvas, onProgress) {
     ocrProgressCb = onProgress || null;
     try {
-      const worker = await getWorker();
-      const { data } = await worker.recognize(canvas);
-      return data.text;
+      // canvas → PNG dataURL（可穿过 chrome.runtime 消息通道传输）
+      // 用 JPEG 的话体积更小但二值化后 JPEG 会毁掉锐利边缘，这里用 PNG。
+      const dataURL = canvas.toDataURL("image/png");
+      const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+      const response = await chrome.runtime.sendMessage({
+        type: "ocr-request",
+        id,
+        imageDataURL: dataURL
+      });
+
+      if (!response) throw new Error("OCR 服务无响应（扩展可能需要重新加载）");
+      if (!response.ok) throw new Error(response.error || "OCR 失败");
+      return response.text || "";
     } finally {
       ocrProgressCb = null;
     }

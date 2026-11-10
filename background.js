@@ -1,7 +1,11 @@
 // background service worker
-// 职责：监听快捷键 / 右键菜单 / action 点击，向当前 tab 的 content script 发送启动信号
+// 职责：
+//   1. 监听快捷键 / 右键菜单 / action 点击，向当前 tab 的 content script 发送启动信号
+//   2. 管理 offscreen document 生命周期（用它跑 Tesseract，绕开网页 CSP）
+//   3. 把 content script 的 OCR 请求转发给 offscreen，再把结果转发回去
 
 const START_MSG = { type: "START_OCR_SELECTION" };
+const OFFSCREEN_URL = "offscreen.html";
 
 // 安装/更新时创建右键菜单
 chrome.runtime.onInstalled.addListener(() => {
@@ -12,7 +16,89 @@ chrome.runtime.onInstalled.addListener(() => {
   });
 });
 
-// 通用触发入口：向指定 tab 发消息，如果 content script 没就绪则动态注入后再发
+// ========== Offscreen document 管理 ==========
+
+async function hasOffscreen() {
+  if (chrome.offscreen && chrome.offscreen.hasDocument) {
+    return await chrome.offscreen.hasDocument();
+  }
+  // 兼容老版本：靠 getContexts 查
+  if (chrome.runtime.getContexts) {
+    const contexts = await chrome.runtime.getContexts({
+      contextTypes: ["OFFSCREEN_DOCUMENT"],
+      documentUrls: [chrome.runtime.getURL(OFFSCREEN_URL)]
+    });
+    return contexts.length > 0;
+  }
+  return false;
+}
+
+let creatingOffscreen = null;
+async function ensureOffscreen() {
+  if (await hasOffscreen()) return;
+  if (creatingOffscreen) {
+    await creatingOffscreen;
+    return;
+  }
+  creatingOffscreen = chrome.offscreen.createDocument({
+    url: OFFSCREEN_URL,
+    reasons: ["WORKERS"], // 我们就是为了创建 Web Worker 跑 Tesseract
+    justification: "运行 Tesseract.js OCR Web Worker（本地识别，不发送任何数据）"
+  }).finally(() => { creatingOffscreen = null; });
+  await creatingOffscreen;
+}
+
+// ========== 消息路由 ==========
+//
+// content.js 发来 { type: "ocr-request", id, imageDataURL }
+//   → 确保 offscreen 存在
+//   → 转发到 offscreen（target: "offscreen"）
+//   → 把 offscreen 的回复返回给 content.js
+//
+// offscreen 发来 { type: "ocr-progress", id, status, progress }
+//   → 转发到发起请求的 tab 的 content script
+
+const pendingTabByRequestId = new Map(); // id -> tabId
+
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (!msg) return;
+
+  if (msg.type === "ocr-request") {
+    const tabId = sender.tab && sender.tab.id;
+    const id = msg.id;
+    if (tabId != null) pendingTabByRequestId.set(id, tabId);
+
+    (async () => {
+      try {
+        await ensureOffscreen();
+        // 把请求转给 offscreen（它监听 target === "offscreen"）
+        const response = await chrome.runtime.sendMessage({
+          target: "offscreen",
+          type: "ocr-request",
+          id,
+          imageDataURL: msg.imageDataURL
+        });
+        sendResponse(response);
+      } catch (err) {
+        sendResponse({ type: "ocr-response", id, ok: false, error: err && (err.message || String(err)) });
+      } finally {
+        pendingTabByRequestId.delete(id);
+      }
+    })();
+    return true; // keep channel open for async sendResponse
+  }
+
+  if (msg.type === "ocr-progress") {
+    // 来自 offscreen，转发给对应 tab
+    const tabId = pendingTabByRequestId.get(msg.id);
+    if (tabId != null) {
+      chrome.tabs.sendMessage(tabId, msg).catch(() => {});
+    }
+  }
+});
+
+// ========== OCR 触发入口 ==========
+
 async function triggerOcr(tab) {
   if (!tab || !tab.id) return;
   const url = tab.url || "";
@@ -32,9 +118,6 @@ async function triggerOcr(tab) {
         target: { tabId: tab.id },
         files: [
           "lib/html2canvas.min.js",
-          "lib/tesseract-shim.js",
-          "lib/tesseract.min.js",
-          "lib/tesseract-restore.js",
           "content.js"
         ]
       });

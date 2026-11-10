@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>OCR Offscreen</title>
+</head>
+<body>
+  <!-- 这个页面不会被用户看到，只负责在扩展自己的 origin 下跑 Tesseract OCR。
+       扩展 origin 的 CSP 由 manifest 控制，默认允许 blob worker，所以不会被网页 CSP 影响。 -->
+  <script src="lib/tesseract.min.js"></script>
+  <script src="offscreen.js"></script>
+</body>
+</html>
